@@ -8,11 +8,11 @@ This git repositiory is for the final project for ECMA31320
     3. [Income-Move_Final.Rmd](https://github.com/iefis/ecma31320_gp_LPZ/blob/eb7a59dfbad2fca60b0808acf71b5f8cbd64a44a/replication_pkg_lpz/code/Income-Move_Final.Rmd) contains R code and results for data analysis and visualization of family mobility on children's labor outcomes. The code should be executed in R environment.
 
 * data folder
-    1. [full_sample.csv.zip](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/full_sample.csv.zip)) is a compressed file of the raw data requested from PSID (https://psidonline.isr.umich.edu) that contains the full data sample we used in this project.
+    1. [full_sample.csv.zip](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/full_sample.csv.zip) is the compressed file of the raw data requested from *PSID (https://psidonline.isr.umich.edu)* that contains the full data sample we used in this project.
     2. [full_sample_output.csv](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/fullsample_output.csv) is the output file running clean_data code on full_sample.csv. It is also the input file for data analysis.
 
 * To replicate the results:
-    1. Unzip [full_sample.csv.zip](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/full_sample.csv.zip)) 
+    1. Unzip [full_sample.csv.zip](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/full_sample.csv.zip)
     2. Change the file path to the corresponding file path of the unzipped full_sample.csv in [clean_data.ipynb](https://github.com/iefis/ecma31320_gp_LPZ/blob/458d9e824f28caeeba62be389332f28034d6169c/replication_pkg_lpz/code/clean_data_final.ipynb) and run the entire script. An output of csv file will be produced.
     3. Change the file path in Rmd files to the path of the output file and run the R script.
 
