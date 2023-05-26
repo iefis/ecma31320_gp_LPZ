@@ -13,6 +13,6 @@ This git repositiory is for the final project for ECMA31320
 
 * To replicate the results:
     1. Unzip [full_sample.csv.zip](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/full_sample.csv.zip)
-    2. Change the file path to the corresponding file path of the unzipped full_sample.csv in [clean_data.ipynb](https://github.com/iefis/ecma31320_gp_LPZ/blob/458d9e824f28caeeba62be389332f28034d6169c/replication_pkg_lpz/code/clean_data_final.ipynb) and run the entire script. An output of csv file will be produced.
+    2. Change the file path to the corresponding file path of the unzipped full_sample.csv in [clean_data.ipynb](https://github.com/iefis/ecma31320_gp_LPZ/blob/7b6fac5eb0db20f4ecb1dd3efb35bd619c788422/replication_pkg_lpz/code/clean_data_final.ipynb) and run the entire script. An output of csv file will be produced.
     3. Change the file path in Rmd files to the path of the output file and run the R script.
 
