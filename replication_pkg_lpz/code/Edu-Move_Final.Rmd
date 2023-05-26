@@ -1,6 +1,6 @@
 ---
 title: "Analyse Family Mobility on Children's Educational Attainment"
-author: "Zhang Yicheng"
+author: "Zhang Yicheng & Sifei Liu"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
