@@ -28,7 +28,7 @@ library(msir)
 
 ```{r}
 # Loading data
-edu_data <- read_csv("/Users/zhangyicheng/Library/CloudStorage/OneDrive-TheUniversityofChicago/Final_Project/data/clean/fullsample_output.csv", show_col_types = FALSE)
+edu_data <- read_csv("./fullsample_output.csv", show_col_types = FALSE)
 
 # Creating age group dummies
 edu_data <- edu_data %>%
