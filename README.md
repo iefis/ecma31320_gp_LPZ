@@ -3,9 +3,9 @@
 This git repositiory is for the final project for ECMA31320
 
 * codes folder:
-    1. [clean_data.ipynb](https://github.com/iefis/ecma31320_gp_LPZ/blob/458d9e824f28caeeba62be389332f28034d6169c/replication_pkg_lpz/code/clean_data_final.ipynb): contains the initial data wangling steps to be executed in Python environment.
-    2. [Edu-Move.Rmd](https://github.com/iefis/ecma31320_gp_LPZ/blob/458d9e824f28caeeba62be389332f28034d6169c/replication_pkg_lpz/code/Edu-Move_Final.Rmd) contains R code and results for data analysis and visualization of family mobility on children's educational outcomes. The code should be executed in R environment.
-    3. [Income-Move_Final.Rmd](https://github.com/iefis/ecma31320_gp_LPZ/blob/eb7a59dfbad2fca60b0808acf71b5f8cbd64a44a/replication_pkg_lpz/code/Income-Move_Final.Rmd) contains R code and results for data analysis and visualization of family mobility on children's labor outcomes. The code should be executed in R environment.
+    1. [clean_data.ipynb](https://github.com/iefis/ecma31320_gp_LPZ/blob/7b6fac5eb0db20f4ecb1dd3efb35bd619c788422/replication_pkg_lpz/code/clean_data_final.ipynb): contains the initial data wangling steps to be executed in Python environment.
+    2. [Edu-Move.Rmd](https://github.com/iefis/ecma31320_gp_LPZ/blob/7b6fac5eb0db20f4ecb1dd3efb35bd619c788422/replication_pkg_lpz/code/Edu-Move_Final.Rmd) contains R code and results for data analysis and visualization of family mobility on children's educational outcomes. The code should be executed in R environment.
+    3. [Income-Move_Final.Rmd](https://github.com/iefis/ecma31320_gp_LPZ/blob/7b6fac5eb0db20f4ecb1dd3efb35bd619c788422/replication_pkg_lpz/code/Income-Move_Final.Rmd) contains R code and results for data analysis and visualization of family mobility on children's labor outcomes. The code should be executed in R environment.
 
 * data folder
     1. [full_sample.csv.zip](https://github.com/iefis/ecma31320_gp_LPZ/blob/88240d88e36f6e36319bc2c0f8d5318b4ab645cb/replication_pkg_lpz/data/full_sample.csv.zip) is the compressed file of the raw data requested from *PSID (https://psidonline.isr.umich.edu)* that contains the full data sample we used in this project.
