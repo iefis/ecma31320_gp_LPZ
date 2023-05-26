@@ -1,5 +1,5 @@
 # Childhood Family Residential Mobility and Long-run Education \& Labor Outcomes
-Authors: Sifei Liu, Bhavya Pandey, Yicheng Zhang
+**Authors: Sifei Liu, Bhavya Pandey, Yicheng Zhang**  
 This git repositiory is for the final project for ECMA31320
 
 * codes folder:
