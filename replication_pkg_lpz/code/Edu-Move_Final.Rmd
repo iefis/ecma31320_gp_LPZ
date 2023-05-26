@@ -1,0 +1,786 @@
+---
+title: "Analyse Family Mobility on Children's Educational Attainment"
+author: "Zhang Yicheng"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stargazer)  # regression outputs
+library(broom)      # tidy function: statistical outputs into tibbles
+library(kableExtra) # make-up tables
+library(rstatix)
+library(ggpubr)
+library(gridExtra)
+library(knitr)
+library(readr)
+library(AER)
+library(ggplot2)
+options(pillar.sigfig = 3)
+library(magrittr)
+library(haven)
+library(lfe)
+library(msir)
+```
+
+
+```{r}
+# Loading data
+edu_data <- read_csv("/Users/zhangyicheng/Library/CloudStorage/OneDrive-TheUniversityofChicago/Final_Project/data/clean/fullsample_output.csv", show_col_types = FALSE)
+
+# Creating age group dummies
+edu_data <- edu_data %>%
+  mutate(age_gp6 = ifelse(edu_data$age == 6, 1, 0)) %>%
+  mutate(age_gp7t8 = ifelse((edu_data$age <= 8) & (7 <= edu_data$age), 1, 0)) %>%
+  mutate(age_gp9t12 = ifelse((edu_data$age <= 12) & (9 <= edu_data$age), 1, 0)) %>%
+  mutate(age_gp6t12 = ifelse((edu_data$age <= 12) & (6 <= edu_data$age), 1, 0)) %>%
+  mutate(age_gp13t15 = ifelse((edu_data$age <= 15) & (12 < edu_data$age), 1, 0)) %>%
+  mutate(age_gp16t18 = ifelse((edu_data$age <= 18) & (16 <= edu_data$age), 1, 0)) %>%
+  filter((fam_income < 100000) & (fam_income > 2000))
+```
+
+# Statistics
+### Data Distribution
+```{r}
+par(mfrow=c(1,2))
+hist(edu_data$fam_income, freq = FALSE, 
+     xlim = c(min(edu_data$fam_income), max(edu_data$fam_income)), 
+     ylim = c(0, 0.00005), breaks = 30)
+hist(edu_data$income25_35p, freq = FALSE, 
+     xlim = c(min(edu_data$fam_income), max(edu_data$fam_income)), 
+     ylim = c(0, 0.00005), breaks = 30)
+```
+\newpage
+
+###  Discriptive Statistics
+```{r results='asis', message=FALSE}
+regdata <- edu_data %>%
+  select(edu, mov, sex, race, age, fam_income, dad_edu, mom_edu, year5, state5,
+         age_gp6, age_gp6t12, age_gp7t8, age_gp9t12, age_gp13t15, age_gp16t18) %>%
+  na.omit()
+stargazer(as.data.frame(regdata), type = 'latex', title = 'Descriptive statistics')
+```
+# Empirical Results
+
+## Edu - OLS
+### Baseline -yrs
+```{r results='asis', message=FALSE}
+attach(regdata)
+
+naive_reg <- felm(formula = edu ~ mov | year5 + state5)
+simple_reg <- felm(formula = edu ~ mov + sex + race | age + year5 + state5 |0| state5 )
+fixed_reg <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu | age + year5 + state5 |0| state5 )
+fixed_reg3 <- felm(formula = edu ~ mov*age + sex + race  + log(fam_income) + dad_edu + mom_edu |year5 + state5 |0| state5 )
+fixed_reg2 <- felm(formula = edu ~ mov*sex + race  + log(fam_income) + dad_edu + mom_edu |age + year5 + state5 |0| state5 )
+
+stargazer(naive_reg, simple_reg, fixed_reg, fixed_reg2, fixed_reg3, 
+          type = 'latex',
+          header = FALSE,
+          title = "Mobility Effects on Education Attainment",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c('Age dummies', 'No','Yes','Yes','Yes','No'),
+                         c('Year FE', 'Yes','Yes','Yes','Yes','Yes'),
+                         c('State FE', 'Yes','Yes','Yes','Yes','Yes')),
+          df = FALSE)
+detach(regdata)
+```
+
+### Interaction - age grp
+```{r results='asis', message=FALSE}
+attach(regdata)
+
+fixed_reg2 <- felm(formula = edu ~ mov + age_gp6 + age_gp7t8 + age_gp9t12 + age_gp13t15
+                    + log(fam_income) + dad_edu + mom_edu + sex + race | year5 + state5 |0|state5)
+
+int_age_reg <- felm(formula = edu ~ mov*age_gp6 + mov*age_gp7t8 + mov*age_gp9t12 + mov*age_gp13t15 + log(fam_income) + dad_edu + mom_edu + sex + race | year5 + state5 |0|state5)
+
+stargazer(fixed_reg2, int_age_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Mobility effects on Education Attainment (interacted with age group)",
+          column.labels = c('$(1)$','$(2)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c('Birth Year FE', 'Yes','Yes'),
+               c('State FE', 'Yes','Yes')),
+          df = FALSE)
+detach(regdata)
+```
+### Cross States/Regions Relocation
+```{r}
+regdata <- edu_data %>%
+  select(edu, mov, sex, race, age, fam_income, dad_edu, mom_edu, year5, state5,
+         xstate, xreg) %>%
+  na.omit()
+across_reg <- regdata %>%
+  filter((xreg == TRUE)&(mov==1)|(mov==0)) 
+not_across_reg <- regdata %>%
+  filter((xreg == FALSE)&(mov==1)|(mov==0)) 
+across_state <- regdata %>%
+  filter((xstate == TRUE)&(mov==1)|(mov==0)) 
+not_across_state <- regdata %>%
+  filter((xstate == FALSE)&(mov==1)|(mov==0)) 
+
+fixed_reg0 <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  | age + year5 + state5 |0| state5, data = regdata)
+fixed_reg1 <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  | age + year5 + state5 |0| state5, data = across_state)
+fixed_reg2 <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  | age + year5 + state5 |0| state5, data = not_across_state)
+fixed_reg3 <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  | age + year5 + state5 |0| state5, data = across_reg)
+fixed_reg4 <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  | age + year5 + state5 |0| state5, data = not_across_reg)
+
+stargazer(fixed_reg0, fixed_reg1, fixed_reg2, fixed_reg3, fixed_reg4, 
+          type = 'latex',
+          header = FALSE,
+          title = "Mobility Effects on Education Attainment",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c('Type of move', 'Full sample', 'Across state','Within state','Across region','Within region'),
+                          c('Age dummies', 'Yes','Yes','Yes','Yes','Yes'),
+                         c('Year FE', 'Yes','Yes','Yes','Yes','Yes'),
+                         c('State FE', 'Yes','Yes','Yes','Yes','Yes')),
+          df = FALSE)
+
+```
+\newpage
+
+
+## Edu - IV
+
+### Mom-age RAW Visualization
+```{r}
+### IV Visualization for mom_age ###
+iv_data <- edu_data %>%
+  select(edu, mov, nmov, sex, race, age, fam_income, dad_edu, mom_edu, mom_age, year5, state5) %>%
+  na.omit()
+
+mom_df <- iv_data %>% 
+  mutate(mom_gp2025 = ifelse((20 <= iv_data$mom_age) & (iv_data$mom_age <= 25), 1, 0)) %>%
+  mutate(mom_gp2630 = ifelse((26 <= iv_data$mom_age) & (iv_data$mom_age <= 30), 1, 0)) %>%
+  mutate(mom_gp3135 = ifelse((31 <= iv_data$mom_age) & (iv_data$mom_age <= 35), 1, 0)) %>%
+  mutate(mom_gp31p = ifelse(31 < iv_data$mom_age, 1, 0)) %>%
+  mutate(mom_gp35p = ifelse(35 < iv_data$mom_age, 1, 0)) %>%
+  filter((20 <= iv_data$mom_age) & (iv_data$mom_age <= 45))
+
+
+mom_iv_df = mom_df %>%
+  group_by(mom_age) %>% 
+  dplyr::summarise(move = mean(mov), 
+                   nmove = mean(nmov),
+                   mom_age = median(mom_age),
+                   mean_edu = mean(edu))
+
+par(mfrow=c(2,2))
+
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.4, 0.4, alpha = 0.15), 
+     xlab = "mom age", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(mom_iv_df$mom_age, mom_iv_df$move,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 1, col = 'black')
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.4, 0.4, alpha = 0.15), 
+     xlab = "mom age", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+plot(mom_iv_df$mom_age, mom_iv_df$mean_edu,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 1, col = 'black')
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+```
+
+### Mom_age results & Visualize
+```{r results='asis', message=FALSE, image_height = 7}
+attach(mom_df)
+
+baseline <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |year5 + state5 + age|0| state5)
+
+
+first_stage_reg <- felm(formula = mov ~ mom_age + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + state5 + age|0|state5)
+fitted_values <- first_stage_reg$fitted.values
+fit <- lm(fitted_values ~ mom_df$mom_age)
+
+
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(fit$fitted.values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'white',
+     ylim = c(0, 1))
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+
+second_stage_reg <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + state5 + age |(mov ~ mom_age)|state5)
+fitted_values <- second_stage_reg$fitted.values
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+plot(fitted_values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'grey',
+     ylim = c(9, 17))
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(first_stage_reg)$F.fstat 
+Fstat2 <- summary(second_stage_reg)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars1,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+
+
+stargazer(baseline, first_stage_reg, second_stage_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('baseline','$first stage$','$second stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",sep=""),note0,note1,note2), 
+                         c('Age dummies', 'Yes','Yes','Yes'),
+                         c('Birth Year FE', 'Yes','Yes','Yes'),
+                       c('State FE', 'Yes','Yes','Yes')),
+          df = FALSE)
+
+```
+### Mom-age group Overfit
+```{r results='asis', message=FALSE}
+attach(mom_df)
+first_stage_reg <- felm(formula = mov ~ mom_gp2025 + mom_gp2630 + mom_gp3135 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+
+# Extract the fitted values
+fitted_values <- first_stage_reg$fitted.values
+
+fit <- lm(fitted_values ~ mom_df$mom_age)
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(fit$fitted.values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'white')
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+second_stage_reg <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + state5 |(mov ~ mom_gp2025 + mom_gp2630 + mom_gp3135 ) |state5)
+
+# Extract the fitted values
+fitted_values <- second_stage_reg$fitted.values
+
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+
+plot(fitted_values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'grey')
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+
+stargazer(first_stage_reg, second_stage_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$first stage$','$second stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE)
+
+```
+### Mom-age group Onefit
+```{r results='asis', message=FALSE}
+attach(mom_df)
+first_stage_reg1 <- felm(formula = mov ~ mom_gp2025 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+first_stage_reg2 <- felm(formula = mov ~ mom_gp2630 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+first_stage_reg3 <- felm(formula = mov ~ mom_gp3135 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+
+
+Fstat0 <- summary(first_stage_reg1)$F.fstat 
+Fstat1 <- summary(first_stage_reg2)$F.fstat 
+Fstat2 <- summary(first_stage_reg3)$F.fstat 
+
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+
+note0 <- c(paste(round(Fstat0[1],3),stars1,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+
+
+stargazer(first_stage_reg1,first_stage_reg2,first_stage_reg3,
+          type = "latex",
+          header = FALSE,
+          title = "First stage: Discretized Mother's age",
+          column.labels = c('(1)','$(2)$','$(3)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c("Mom's age group", "20-25", "26-30", "31-35"),
+                        c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",sep=""),note0,note1,note2), 
+                         c('Age dummies', 'Yes','Yes','Yes'),
+                         c('Birth Year FE', 'Yes','Yes','Yes'),
+                       c('State FE', 'Yes','Yes','Yes')),
+          df = FALSE)
+detach(mom_df)
+```
+
+```{r results='asis', message=FALSE}
+attach(mom_df)
+first_stage_reg1 <- felm(formula = mov ~ mom_gp2025 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+second_stage_reg1 <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu | age + year5 + state5 |(mov ~ mom_gp2025) |state5)
+
+first_stage_reg2 <- felm(formula = mov ~ mom_gp2630 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+second_stage_reg2 <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |age + year5 + state5 |(mov ~  mom_gp2630 ) |state5)
+
+first_stage_reg3 <- felm(formula = mov ~ mom_gp3135 + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+second_stage_reg3 <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |age + year5 + state5 |(mov ~  mom_gp3135 ) |state5)
+stargazer(first_stage_reg1, second_stage_reg1,first_stage_reg2, second_stage_reg2,first_stage_reg3, second_stage_reg3,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$1st stage$','$2nd stage$','$1st stage$','$2nd stage$','$1st stage$','$2nd stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE)
+detach(mom_df)
+```
+### Number of move in First stage
+```{r results='asis', message=FALSE}
+attach(mom_df)
+first_stage_reg <- felm(formula = nmov ~ mom_age + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + state5 |0|state5)
+
+# Extract the fitted values
+fitted_values <- first_stage_reg$fitted.values
+fit <- lm(fitted_values ~ mom_df$mom_age)
+
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(fit$fitted.values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'white')
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+## THIS IS WEIRD
+second_stage_reg <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + state5 |(nmov + I(nmov^2) ~ mom_age)|state5)
+
+# Extract the fitted values
+fitted_values <- second_stage_reg$fitted.values
+
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+
+plot(fitted_values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0.5, col = 'grey')
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+
+stargazer(first_stage_reg, second_stage_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$first stage$','$second stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE)
+detach(mom_df)
+
+```
+
+### Visulize Income - momage iv 
+```{r}
+iv_data <- edu_data %>%
+  select(income25_35p, edu, mov, sex, race, age, fam_income, dad_edu, mom_edu, mom_age, year5, state5) %>%
+  na.omit()
+
+mom_df = iv_data %>% 
+  filter((20 <= mom_age) & (mom_age <= 45))
+
+mom_iv_df = mom_df %>%
+  group_by(mom_age) %>% 
+  dplyr::summarise(move = mean(mov), 
+                   mom_age = median(mom_age),
+                   mean_edu = mean(edu))
+attach(mom_df)
+first_stage_reg <- felm(formula = mov ~ mom_age + log(fam_income) + dad_edu + mom_edu + sex + race| age + year5 + state5 |0|state5)
+
+# Extract the fitted values
+fitted_values <- first_stage_reg$fitted.values
+
+fit <- lm(fitted_values ~ mom_df$mom_age)
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(fit$fitted.values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'white',
+     ylim = c(0, 1))
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+second_stage_reg <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |age + year5 + state5 |(mov ~ mom_age)|state5)
+
+# Extract the fitted values
+fitted_values <- second_stage_reg$fitted.values
+
+par(pin = c(2, 2))
+hist(mom_df$mom_age, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "mom age", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+
+plot(fitted_values ~ mom_df$mom_age,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'grey')
+l<- loess.sd(fitted_values ~ mom_df$mom_age, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4)
+mtext("log(incoome25-35p)", side = 4, line = 3)
+
+stargazer(first_stage_reg, second_stage_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$first stage$','$second stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE)
+```
+### Number of regions IV RAW Visualization
+```{r}
+### IV Visualization for number of stage ###
+iv_data <- edu_data %>%
+  select(edu, mov, sex, race, age, fam_income, dad_edu, mom_edu, nreg, year5, state5) %>%
+  mutate(nreg1=ifelse(nreg==1,1,0)) %>%
+  mutate(nreg2=ifelse(nreg==2,1,0)) %>%
+  mutate(nreg2p=ifelse(nreg>2,1,0)) %>%
+  na.omit()
+
+nreg_df = iv_data %>% 
+  filter(nreg <= 5)
+
+nreg_iv_df = nreg_df %>%
+  group_by(nreg) %>% 
+  dplyr::summarise(move = mean(mov), 
+                   hd_nreg = median(nreg),
+                   mean_edu = mean(edu))
+
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+####
+hist(nreg_df$nreg, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of region", ylab = "density", main = "First stage")
+par(new = TRUE)
+plot(nreg_iv_df$hd_nreg, nreg_iv_df$move,
+     xaxt = "n", yaxt = "n",ann = FALSE, type = "l", lwd = 2)
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+####
+hist(nreg_df$nreg, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of region", ylab = "density", main = "Reduced form")
+par(new = TRUE)
+plot(nreg_iv_df$hd_nreg, nreg_iv_df$mean_edu,
+     xaxt = "n", yaxt = "n",ann = FALSE, type = "l", lwd = 2)
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+```
+
+### Number of regions IV results
+```{r results='asis', message=FALSE}
+attach(nreg_df)
+
+baseline <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |age + year5 + state5 |0| state5)
+first_stage_reg <- felm(formula = mov ~ nreg + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + state5 + age|0|state5)
+
+fitted_values <- first_stage_reg$fitted.values
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+hist(nreg_df$nreg, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of regions", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(fitted_values ~ nreg_df$nreg,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'white',
+     ylim = c(0, 1))
+l<- loess.sd(fitted_values ~ nreg_df$nreg, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+
+second_stage_reg <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + state5 + age | (mov ~ nreg) |state5 )
+fitted_values <- second_stage_reg$fitted.values
+par(pin = c(2, 2))
+hist(nreg_df$nreg, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of regions", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+plot(fitted_values ~ nreg_df$nreg,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 1, col = 'gray')
+l<- loess.sd(fitted_values ~ nreg_df$nreg, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(first_stage_reg)$F.fstat 
+Fstat2 <- summary(second_stage_reg)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars1,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+
+stargazer(baseline, first_stage_reg, second_stage_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Number of Regions as IV",
+          column.labels = c('baseline','$first stage$','$second stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",sep=""),note0,note1,note2),
+                         c('Age dummies', 'Yes','Yes','Yes'),
+                         c('Birth Year FE', 'Yes','Yes','Yes'),
+                       c('State FE', 'Yes','Yes','Yes')),
+          df = FALSE)
+
+detach(nreg_df)
+```
+
+### Number of STATEs IV RAW Visualization
+```{r}
+### IV Visualization for number of state ###
+iv_data <- edu_data %>%
+  select(edu, mov, sex, race, age, fam_income, dad_edu, mom_edu, nstate, year5, state5) %>%
+  mutate(nstate12=ifelse(nstate<=2,1,0)) %>%
+  mutate(nstate34=ifelse((nstate<=4)&(nstate<=3),1,0)) %>%
+  # mutate(nstate5=ifelse(nreg>2,1,0)) %>%
+  na.omit()
+
+nreg_df = iv_data %>% 
+  filter(nstate <= 12)
+
+nreg_iv_df = nreg_df %>%
+  group_by(nstate) %>% 
+  dplyr::summarise(move = mean(mov), 
+                   hd_nreg = median(nstate),
+                   mean_edu = mean(edu))
+
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+####
+hist(nreg_df$nstate, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of region", ylab = "density", main = "First stage")
+par(new = TRUE)
+plot(nreg_iv_df$hd_nreg, nreg_iv_df$move,
+     xaxt = "n", yaxt = "n",ann = FALSE, type = "l", lwd = 2,
+     ylim = c(0, 1))
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+####
+hist(nreg_df$nstate, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of region", ylab = "density", main = "Reduced form")
+par(new = TRUE)
+plot(nreg_iv_df$hd_nreg, nreg_iv_df$mean_edu,
+     xaxt = "n", yaxt = "n",ann = FALSE, type = "l", lwd = 2)
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+```
+### Number of STATEs IV Results
+```{r results='asis', message=FALSE}
+attach(nreg_df)
+
+baseline <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |year5 + state5 + age |0| state5)
+
+first_stage_reg <- felm(formula = mov ~ nstate12 + nstate34 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + age + state5  |0|state5)
+
+fitted_values <- first_stage_reg$fitted.values
+par(mfrow=c(1,2))
+par(pin = c(2, 2))
+hist(nreg_df$nstate, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of states", ylab = "density", main = "First stage", breaks = 25)
+par(new = TRUE)
+plot(fitted_values ~ nreg_df$nstate,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 0, col = 'grey',
+     ylim = c(0, 1))
+l<- loess.sd(fitted_values ~ nreg_df$nstate, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4) # Add right y-axis
+mtext("Prob to Move", side = 4, line = 3) # Add right y-axis label
+
+
+second_stage_reg <- felm(formula = edu ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + state5 + age | (mov ~ nstate12 + nstate34) |state5 )
+fitted_values <- second_stage_reg$fitted.values
+par(pin = c(2, 2))
+hist(nreg_df$nstate, freq = FALSE, col = rgb(1, 0.75, 0.8, alpha = 0.3), 
+     xlab = "number of states", ylab = "density", main = "Reduced form", breaks = 25)
+par(new = TRUE)
+plot(fitted_values ~ nreg_df$nstate,
+     xaxt = "n", yaxt = "n",ann = FALSE, lwd = 1, col = 'gray')
+l<- loess.sd(fitted_values ~ nreg_df$nstate, nsigma = 1.625)
+lines(l$x, l$y, lwd = 2)
+lines(l$x, l$upper, lty=2)
+lines(l$x, l$lower, lty=2)
+axis(side = 4)
+mtext("child edu", side = 4, line = 3)
+
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(first_stage_reg)$F.fstat 
+Fstat2 <- summary(second_stage_reg)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars1,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+
+stargazer(baseline, first_stage_reg, second_stage_reg,
+          type = "latex",
+          header = FALSE,
+          title = "Number of States as IV",
+          column.labels = c('baseline','$first stage$','$second stage$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",sep=""),note0,note1,note2), 
+                          c('Age dummies', 'Yes','Yes','Yes'),
+                         c('Birth Year FE', 'Yes','Yes','Yes'),
+                       c('State FE', 'Yes','Yes','Yes')),
+          df = FALSE)
+detach(nreg_df)
+```
+## Auxiliary Regressions 
+### Number of move
+```{r results='asis', message=FALSE}
+aux_data <- edu_data %>%
+  select(edu, nmov, mov, sex, race, age, fam_income, dad_edu, mom_edu, year5, state5,
+         age_gp6, age_gp7t8, age_gp9t12, age_gp13t15, age_gp16t18) %>%
+  mutate(move3p = ifelse(nmov>3, 1, 0)) %>%
+  mutate(move3 = ifelse(nmov == 3, 1, 0)) %>%
+  mutate(move2 = ifelse(nmov == 2, 1, 0)) %>%
+  mutate(move1 = ifelse(nmov == 1, 1, 0)) %>%
+  na.omit()
+
+attach(aux_data)
+fixed_reg <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |year5 + state5 + age |0| state5)
+fixed_reg1 <- felm(formula = edu ~ nmov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |year5 + state5 + age |0| state5)
+fixed_reg2 <- felm(formula = edu ~ nmov + I(nmov^2) + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |year5 + state5 + age |0| state5)
+fixed_reg3 <- felm(formula = edu ~ move1 + move2 + move3 + move3p + sex + race  + log(fam_income) + dad_edu + mom_edu 
+                  |year5 + state5 + age |0| state5)
+
+stargazer(fixed_reg, fixed_reg1, fixed_reg2, fixed_reg3,
+          type = 'latex',
+          header = FALSE,
+          title = "Number of time moved",
+          column.labels = c('$1$', '$2$', '$3$', '$4$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          add.lines=list(c('Age dummies', 'Yes','Yes','Yes','Yes'),
+               c('Year FE', 'Yes','Yes','Yes','Yes'),
+               c('State FE', 'Yes','Yes','Yes','Yes')),
+          df = FALSE)
+detach(aux_data)
+
+
+
+
+```
+
+### Reason to move
+```{r results='asis', message=FALSE}
+reason_data <- edu_data %>%
+  select(edu, reason_gp, mov, sex, race, age, fam_income, dad_edu, mom_edu, year5, state5)
+
+reason1_data <- reason_data %>%
+  filter((reason_gp == 1)|(mov==0))
+reason2_data <- reason_data %>%
+  filter((reason_gp == 2)|(mov==0))
+reason3_data <- reason_data %>%
+  filter((reason_gp == 3)|(mov==0))
+reason4_data <- reason_data %>%
+  filter((reason_gp == 4)|(mov==0))
+
+reason1_reg <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |age + year5 + state5 |0| state5, data = reason1_data)
+reason2_reg <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |age + year5 + state5 |0| state5, data = reason2_data)
+reason3_reg <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |age + year5 + state5 |0| state5, data = reason3_data)
+reason4_reg <- felm(formula = edu ~ mov + sex + race + log(fam_income) + dad_edu + mom_edu 
+                  |age + year5 + state5 |0| state5, data = reason4_data)
+
+stargazer(reason1_reg, reason2_reg, reason3_reg, reason4_reg,
+          type = 'latex',
+          header = FALSE,
+          title = "Effects on Education outcome: Subgroup based on moving reason",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$', '$(4)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE)
+```

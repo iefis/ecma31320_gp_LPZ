@@ -1,0 +1,734 @@
+---
+title: "Income_ChildMove"
+author: "Yicheng Zhang and Sifei Liu"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(stargazer)  # regression outputs
+library(broom)      # tidy function: statistical outputs into tibbles
+library(kableExtra) # make-up tables
+library(rstatix)
+library(ggpubr)
+library(gridExtra)
+library(knitr)
+library(readr)
+library(AER)
+library(ggplot2)
+options(pillar.sigfig = 3)
+library(magrittr)
+library(haven)
+library(lfe)
+library(texreg)
+```
+
+```{r}
+# change directory as needed
+data <- read_csv("../data/fullsample_output.csv", show_col_types = FALSE)
+
+data <- data %>% 
+  mutate(age_gp12 = ifelse(age <= 12, 1, 0))
+
+data <- data %>% 
+  mutate(age_gp6 = ifelse((age == 6), 1, 0)) %>%
+  mutate(age_gp7t8 = ifelse((age >= 7) & (age <= 8), 1, 0)) %>%
+  mutate(age_gp9t10 = ifelse((age >= 9) & (age <= 10), 1, 0)) %>%
+  mutate(age_gp11t12 = ifelse((age >= 11) & (age <= 12), 1, 0)) %>%
+  mutate(age_gp9t12 = ifelse((age >= 9) & (age <= 12), 1, 0)) %>%
+  mutate(age_gp13t14 = ifelse((age >= 13) & (age <= 14), 1, 0)) %>%
+  mutate(age_gp15 = ifelse((age == 15), 1, 0)) %>%
+  mutate(age_gp13t15 = ifelse((age >= 13) & (age <= 15), 1, 0)) %>%
+  mutate(age_gp16t18 = ifelse((age >= 16) & (age <= 18), 1, 0))
+
+data <- data %>%
+  mutate(mom_age_gp1 = ifelse((mom_age >= 20 & mom_age < 23), 1, 0)) %>%
+  mutate(mom_age_gp2 = ifelse((mom_age >= 23 & mom_age < 27), 1, 0)) %>%
+  mutate(mom_age_gp3 = ifelse((mom_age >= 27 & mom_age < 31), 1, 0)) %>%
+  mutate(mom_age_gp4 = ifelse((mom_age >= 31 & mom_age < 35), 1, 0)) %>%
+  mutate(mom_age_gp5 = ifelse((mom_age >= 35), 1, 0)) %>%
+  mutate(mom_age_gp30 = ifelse((mom_age <= 30)&(mom_age >= 23), 1, 0))
+
+data <- data %>%
+  mutate(nreg_dum1 = ifelse((nreg == 1), 1, 0)) %>%
+  mutate(nreg_dum2 = ifelse((nreg >= 2), 1, 0))
+
+data <- data %>%
+  mutate(nstate_dum = ifelse((nstate >= 3), 1, 0)) %>%
+  mutate(nstate_dum1 = ifelse((nstate == 1), 1, 0)) %>%
+  mutate(nstate_dum2 = ifelse((nstate == 2), 1, 0)) %>%
+  mutate(nstate_dum3 = ifelse((nstate == 3), 1, 0)) %>%
+  mutate(nstate_dum4 = ifelse((nstate >= 4), 1, 0))
+
+data <- data %>%
+  mutate(nmov1 = ifelse((nmov == 1), 1, 0)) %>%
+  mutate(nmov2 = ifelse((nmov == 2), 1, 0)) %>%
+  mutate(nmov3 = ifelse((nmov == 3), 1, 0)) %>%
+  mutate(nmov4 = ifelse((nmov >= 4), 1, 0))
+
+```
+
+# Summary Statistics
+
+## Table 5:Summary
+
+```{r}
+df <- data %>% 
+  select("income25_35p","mov","edu","fam_income", "dad_edu", "mom_edu",'mom_age',
+          'sex','race','age',"year5","reg5","mom_age") %>%
+  filter((fam_income > 200) & (income25_35p > 100)) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,age,year5,reg5,mom_age))
+stargazer(as.data.frame(df), type = "latex", title="Descriptive statistics", digits=2)
+```
+
+# Empirical Results
+
+## Income - Baseline OLS
+### Table 6: Income avg 25-35p
+
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100)) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+
+reg0 <- felm(formula = log(income25_35p) ~ mov | year5|0|0)
+reg1 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + age|0|0)
+reg2 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|0) 
+reg_s <- felm(formula = log(income25_35p) ~ mov*sex + log(fam_income) + mom_edu + dad_edu + race | year5 + reg5 + age |0|0)
+reg_a <- felm(formula = log(income25_35p) ~ mov*age + log(fam_income) + mom_edu + dad_edu + race| year5 + reg5 |0|0)
+
+stargazer(reg0, reg1, reg2,reg_s,reg_a,
+          type = 'latex',
+          header = FALSE,
+          title = "Mobility Effects on Income (with birth year and region fixed effects)",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','(4)','$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Age dummies", "No", "Yes","Yes", "Yes","No"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "No", "No","Yes", "Yes","Yes")))
+
+detach(regdata)
+```
+
+
+
+## Heterogeneity in age
+
+### Table 7: Age groups
+
+```{r results='asis', message=FALSE}
+attach(regdata)
+log_fixed_reg1 <- felm(formula = log(income25_35p) ~ mov + age_gp12 + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5|0|0)
+
+reg_a1 <- felm(formula = log(income25_35p) ~ mov*age_gp12 + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5|0|0)
+
+log_fixed_reg2 <- felm(formula = log(income25_35p) ~ mov + age_gp6 +age_gp7t8 + age_gp9t10 + age_gp11t12 + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5|0|0)
+
+reg_a2 <- felm(formula = log(income25_35p) ~ mov*age_gp6 +mov*age_gp7t8 + mov*age_gp9t10 + mov*age_gp11t12 + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5|0|0)
+stargazer(log_fixed_reg1, reg_a1, log_fixed_reg2, reg_a2,
+          type = "latex",
+          header = FALSE,
+          title = "Mobility effects on  (interacted with Age group)",
+          column.labels = c('$(1)$','$(2)$','$(3)$','$(4)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Controls","Yes", "Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes", "Yes","Yes")))
+detach(regdata)
+
+```
+
+## Other specifications
+
+### Table A1: Income at 25, Income at 30 and Income at 35, Avg Income25-30, Avg Income30-35
+
+```{r results='asis', message=FALSE}
+
+regdata <- data %>%
+  filter((fam_income > 200) & (income25_35p > 100))
+attach(regdata)
+
+reg25_30 <- felm(formula = income25_30p ~ mov + fam_income + mom_edu + dad_edu + sex + race | year5 + age + reg5|0|0)
+reg30_35 <- felm(formula = income31_35p ~ mov + fam_income + mom_edu + dad_edu + sex + race | year5 + age + reg5|0|0)
+reg25_35 <- felm(formula = income25_35p ~ mov + fam_income + mom_edu + dad_edu + sex + race | year5 + age + reg5|0|0)
+
+reg25_30l <- felm(formula = log(income25_30p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + age + reg5|0|0)
+reg30_35l <- felm(formula = log(income31_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + age + reg5|0|0)
+reg25_35l <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + age + reg5|0|0)
+
+stargazer(reg25_30, reg30_35, reg25_35, reg25_30l, reg30_35l, reg25_35l,
+          type = 'latex',
+          header = FALSE,
+          title = "Mobility Effects on Income (other specifications)",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$','$(6)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Age dummies", "Yes", "Yes","Yes", "Yes","Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes","Yes")))
+detach(regdata)
+```
+
+### Table 15: Reasons to move
+```{r results='asis', message=FALSE}
+regdata1 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & 
+           (((mov==1)&(reason_gp==1))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5))
+regdata2 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & 
+           (((mov==1)&(reason_gp==2))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5))
+regdata3 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & 
+           (((mov==1)&(reason_gp==3))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5))
+regdata4 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & 
+           (((mov==1)&(reason_gp==4))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5))
+
+attach(regdata1)
+reg1 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) # Cluster at current age level
+detach(regdata1)
+
+attach(regdata2)
+reg2 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) # Cluster at current age level
+detach(regdata2)
+
+attach(regdata3)
+reg3 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) # Cluster at current age level
+detach(regdata3)
+
+attach(regdata4)
+reg4 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) # Cluster at current age level
+detach(regdata4)
+
+stargazer(reg1, reg2, reg3, reg4,
+          type = "latex",
+          header = FALSE,
+          title = "Mobility effects on labor outcome (Subgroup based on moving reasons)",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Reason for moving","Production",
+                             "Consumption","Outside reason","Other"),
+                          c("Age dummies", "Yes", "Yes","Yes", "Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes")))
+
+```
+
+### Table 13: whether it is a big move
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100)) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+
+regdata1 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) &
+           (((xstate==1)&(mov==1))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+regdata2 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) &
+           (((xstate==0)&(mov==1))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+regdata3 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) &
+           (((xreg==1)&(mov==1))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+regdata4 <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) &
+           (((xreg==0)&(mov==1))|(mov==0))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+fereg <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) 
+detach(regdata)
+attach(regdata1)
+xstate_reg1 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) 
+detach(regdata1)
+attach(regdata2)
+xstate_reg2 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) 
+detach(regdata2)
+attach(regdata3)
+xreg_reg1 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) 
+detach(regdata3)
+attach(regdata4)
+xreg_reg2 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race | year5 + reg5 + age |0|0) 
+detach(regdata4)
+
+stargazer(fereg, xstate_reg1, xstate_reg2,xreg_reg1, xreg_reg2,
+          type = "latex",
+          header = FALSE,
+          title = "Mobility effects on  labor outcome (Whether move across state/region)",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Type of move","Full sample","Across state",
+                             "Within state","Across region","Within region"),
+                           c("Age dummies", "Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+
+```
+
+## Income - IV
+
+### Mom_age results
+#### Table 8: Linear mom age & dummy mom age
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) ) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+baseline <-  felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race| year5 + reg5 + age|0|0) 
+stage1_reg1 <- felm(formula = mov ~ mom_age + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+stage2_reg1 <- felm(formula = log(income25_35p) ~ log(fam_income) + dad_edu + mom_edu + sex + race |year5 + reg5 + age| (mov ~ mom_age) |0)
+
+stage1_reg2 <- felm(formula = mov ~ mom_age_gp30 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+
+stage2_reg2 <- felm(formula = log(income25_35p) ~ log(fam_income) + dad_edu + mom_edu + sex + race |year5 + reg5 + age| (mov ~ mom_age_gp30) |0)
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(stage1_reg1)$F.fstat 
+Fstat2 <- summary(stage2_reg1)$F.fstat
+Fstat3 <- summary(stage1_reg2)$F.fstat 
+Fstat4 <- summary(stage2_reg2)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+stargazer(baseline, stage1_reg1, stage2_reg1, stage1_reg2, stage2_reg2,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+#### Table 18: First stage - discretize
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) ) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+reg_gp1 <- felm(formula = mov ~ mom_age_gp1 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp2 <- felm(formula = mov ~ mom_age_gp2 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp3 <- felm(formula = mov ~ mom_age_gp3 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp4 <- felm(formula = mov ~ mom_age_gp4 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp5 <- felm(formula = mov ~ mom_age_gp5 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+
+Fstat0 <- summary(reg_gp1)$F.fstat 
+Fstat1 <- summary(reg_gp2)$F.fstat 
+Fstat2 <- summary(reg_gp3)$F.fstat
+Fstat3 <- summary(reg_gp4)$F.fstat 
+Fstat4 <- summary(reg_gp5)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+screenreg(list(first_stage_reg, second_stage_reg), include.fstatistic = T)
+stargazer(reg_gp1, reg_gp2, reg_gp3, reg_gp4, reg_gp5,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("Mom's age group", "20-22", "23-26","27-30", "31-34","35+"),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+
+### Number of regions results
+#### Table A5: First stage - discretize
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & ((nreg > 0) & (nreg <= 4))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,nreg))
+
+attach(regdata)
+reg_gp1 <- felm(formula = mov ~ nreg + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp2 <- felm(formula = mov ~ nreg_dum1 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+
+reg_gp3 <- felm(formula = nmov ~ nreg + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp4 <- felm(formula = nmov ~ nreg_dum1 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+
+Fstat0 <- summary(reg_gp1)$F.fstat 
+Fstat1 <- summary(reg_gp2)$F.fstat 
+Fstat2 <- summary(reg_gp3)$F.fstat 
+Fstat3 <- summary(reg_gp4)$F.fstat 
+
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+
+stargazer(reg_gp1,reg_gp2,reg_gp3, reg_gp4,
+          type = "latex",
+          header = FALSE,
+          title = "First stage: Discretized number of regions",
+          column.labels = c('$(1)$', '$(2)$','$(3)$', '$(4)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3),
+                           c("Age dummies","Yes", "Yes","Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes","Yes")))
+detach(regdata)
+```
+
+#### Table A3: Linear nreg & dummy nreg
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & ((nreg > 0) & (nreg <= 4))) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,nreg))
+
+attach(regdata)
+baseline <-  felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race| year5 + reg5 + age|0|0) 
+stage1_reg1 <- felm(formula = mov ~ nreg + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5+age| 0 |0)
+
+stage2_reg1 <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + reg5+age| (mov ~ nreg) |0)
+
+stage1_reg2 <- felm(formula = mov ~ nreg_dum2 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5+age| 0 |0)
+
+stage2_reg2 <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + reg5+age| (mov ~ nreg_dum2) |0)
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(stage1_reg1)$F.fstat 
+Fstat2 <- summary(stage2_reg1)$F.fstat
+Fstat3 <- summary(stage1_reg2)$F.fstat 
+Fstat4 <- summary(stage2_reg2)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+stargazer(baseline, stage1_reg1, stage2_reg1, stage1_reg2, stage2_reg2,
+          type = "latex",
+          header = FALSE,
+          title = "nregion as IV",
+           column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+
+### Number of state results
+#### Table A8: First stage - discretize
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & (nstate > 0)) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,nstate))
+
+attach(regdata)
+reg_gp1 <- felm(formula = mov ~ nstate + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp2 <- felm(formula = mov ~ nstate_dum1 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp3 <- felm(formula = mov ~ nstate_dum2 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp4 <- felm(formula = mov ~ nstate_dum3 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+reg_gp5 <- felm(formula = mov ~ nstate_dum4 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+
+Fstat0 <- summary(reg_gp1)$F.fstat 
+Fstat1 <- summary(reg_gp2)$F.fstat 
+Fstat2 <- summary(reg_gp3)$F.fstat
+Fstat3 <- summary(reg_gp4)$F.fstat 
+Fstat4 <- summary(reg_gp5)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+stargazer(reg_gp1, reg_gp2, reg_gp3, reg_gp4, reg_gp5,
+          type = "latex",
+          header = FALSE,
+          title = "nstate as IV",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("# of states", "Full sample","1", "2","3", ">=4"),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+
+#### Table A7: Linear nstate & dummy nstate
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & (nstate > 0)) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,nstate))
+
+attach(regdata)
+baseline <-  felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race| year5 + reg5 + age|0|0) 
+stage1_reg1 <- felm(formula = mov ~ nstate + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5+age| 0 |0)
+
+stage2_reg1 <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + reg5+age| (mov ~ nstate) |0)
+
+stage1_reg2 <- felm(formula = mov ~ nstate_dum4 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5+age| 0 |0)
+
+stage2_reg2 <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + reg5+age| (mov ~ nstate_dum4) |0)
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(stage1_reg1)$F.fstat 
+Fstat2 <- summary(stage2_reg1)$F.fstat
+Fstat3 <- summary(stage1_reg2)$F.fstat 
+Fstat4 <- summary(stage2_reg2)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+stargazer(baseline, stage1_reg1, stage2_reg1, stage1_reg2, stage2_reg2,
+          type = "latex",
+          header = FALSE,
+          title = "nstate as IV",
+           column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+
+
+## Auxillary Regressions
+### Table 10: Number of move on Income avg 25-35p
+
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100)) %>%
+  drop_na(c(nmov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+
+reg0 <- felm(formula = log(income25_35p) ~ nmov | year5|0|0)
+reg1 <- felm(formula = log(income25_35p) ~ nmov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + age|0|0)
+reg2 <- felm(formula = log(income25_35p) ~ nmov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|0) 
+reg3 <- felm(formula = log(income25_35p) ~ nmov + I(nmov^2)+log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|0) 
+reg4 <- felm(formula = log(income25_35p) ~ nmov1 + nmov2 + nmov3 +nmov4 +log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|0)
+
+stargazer(reg0, reg1, reg2,reg3,reg4,
+          type = 'latex',
+          header = FALSE,
+          title = "Mobility Effects on Income (with birth year and region fixed effects)",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$','$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Age dummies", "No", "Yes","Yes", "Yes", "Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes", "Yes"),
+                           c("Region FE", "No", "No","Yes", "Yes", "Yes")))
+detach(regdata)
+```
+### IV: Mom_age results
+
+#### Table 11: Linear mom age & dummy mom age
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) ) %>%
+  drop_na(c(nmov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+baseline <-  felm(formula = log(income25_35p) ~ nmov + log(fam_income) + mom_edu + dad_edu + sex + race| year5 + reg5 + age|0|0) 
+stage1_reg1 <- felm(formula = nmov ~ mom_age + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+stage2_reg1 <- felm(formula = log(income25_35p) ~ log(fam_income) + dad_edu + mom_edu + sex + race |year5 + reg5 + age| (nmov ~ mom_age) |0)
+
+stage1_reg2 <- felm(formula = nmov ~ mom_age_gp30 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5 + age|0|0)
+
+stage2_reg2 <- felm(formula = log(income25_35p) ~ log(fam_income) + dad_edu + mom_edu + sex + race |year5 + reg5 + age| (nmov ~ mom_age_gp30) |0)
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(stage1_reg1)$F.fstat 
+Fstat2 <- summary(stage2_reg1)$F.fstat
+Fstat3 <- summary(stage1_reg2)$F.fstat 
+Fstat4 <- summary(stage2_reg2)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+stargazer(baseline, stage1_reg1, stage2_reg1, stage1_reg2, stage2_reg2,
+          type = "latex",
+          header = FALSE,
+          title = "Mom's age as IV",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("Mom's age group", "20-22", "23-26","27-30", "31-34","35+"),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+
+### nreg results
+
+#### Table A4: Linear nreg & dummy nreg
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100) & ((nreg > 0) & (nreg <= 4))) %>%
+  drop_na(c(nmov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,nreg))
+
+attach(regdata)
+baseline <-  felm(formula = log(income25_35p) ~ nmov + log(fam_income) + mom_edu + dad_edu + sex + race| year5 + reg5 + age|0|0) 
+stage1_reg1 <- felm(formula = nmov ~ nreg + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5+age| 0 |0)
+
+stage2_reg1 <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + reg5+age| (nmov ~ nreg) |0)
+
+stage1_reg2 <- felm(formula = nmov ~ nreg_dum2 + log(fam_income) + dad_edu + mom_edu + sex + race| year5 + reg5+age| 0 |0)
+
+stage2_reg2 <- felm(formula = log(income25_35p) ~ sex + race + log(fam_income) + dad_edu + mom_edu |year5 + reg5+age| (nmov ~ nreg_dum2) |0)
+
+Fstat0 <- summary(baseline)$F.fstat 
+Fstat1 <- summary(stage1_reg1)$F.fstat 
+Fstat2 <- summary(stage2_reg1)$F.fstat
+Fstat3 <- summary(stage1_reg2)$F.fstat 
+Fstat4 <- summary(stage2_reg2)$F.fstat 
+stars0 <- ifelse(Fstat0[4]<0.01,"***",ifelse(Fstat0[4]<0.05,"**",ifelse(Fstat0[4]<0.1,"*","")))
+stars1 <- ifelse(Fstat1[4]<0.01,"***",ifelse(Fstat1[4]<0.05,"**",ifelse(Fstat1[4]<0.1,"*","")))
+stars2 <- ifelse(Fstat2[4]<0.01,"***",ifelse(Fstat2[4]<0.05,"**",ifelse(Fstat2[4]<0.1,"*","")))
+stars3 <- ifelse(Fstat3[4]<0.01,"***",ifelse(Fstat3[4]<0.05,"**",ifelse(Fstat3[4]<0.1,"*","")))
+stars4 <- ifelse(Fstat4[4]<0.01,"***",ifelse(Fstat4[4]<0.05,"**",ifelse(Fstat4[4]<0.1,"*","")))
+note0 <- c(paste(round(Fstat0[1],3),stars0,sep=""))
+note1 <- c(paste(round(Fstat1[1],3),stars1,sep=""))
+note2 <- c(paste(round(Fstat2[1],3),stars2,sep=""))
+note3 <- c(paste(round(Fstat3[1],3),stars3,sep=""))
+note4 <- c(paste(round(Fstat4[1],3),stars4,sep=""))
+
+stargazer(baseline, stage1_reg1, stage2_reg1, stage1_reg2, stage2_reg2,
+          type = "latex",
+          header = FALSE,
+          title = "nregion as IV",
+           column.labels = c('$(1)$', '$(2)$', '$(3)$','$(4)$', '$(5)$'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c(paste("F Statistic"," (df = ",Fstat1[2],"; ", Fstat1[3],")",
+                                   sep=""),note0,note1,note2,note3,note4),
+                           c("Age dummies","Yes", "Yes","Yes", "Yes","Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes","Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes","Yes")))
+detach(regdata)
+```
+
+### Clustering issue
+### Table 19: Income avg 25-35p baseline
+```{r results='asis', message=FALSE}
+regdata <- data %>% 
+  filter((fam_income > 200) & (income25_35p > 100)) %>%
+  drop_na(c(mov,fam_income,mom_edu,dad_edu,sex,race,year5,age,reg5,mom_age))
+
+attach(regdata)
+
+reg0 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|0) 
+reg1 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|reg5)
+reg2 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|age)
+reg3 <- felm(formula = log(income25_35p) ~ mov + log(fam_income) + mom_edu + dad_edu + sex + race|year5 + reg5 + age|0|year5)
+
+stargazer(reg0, reg1, reg2, reg3,
+          type = 'latex',
+          header = FALSE,
+          title = "Mobility Effects on Income: Difference in Clustered SE",
+          column.labels = c('$(1)$', '$(2)$', '$(3)$','(4)'),
+          colnames = FALSE,
+          model.numbers = FALSE,
+          df = FALSE,
+          add.lines = list(c("Clustering level","None","Region","Age","Birth year"),
+            c("Clusters","None","4","13","28"),
+            c("Age dummies", "Yes", "Yes","Yes", "Yes"),
+                          c("Birth Year FE", "Yes", "Yes","Yes", "Yes"),
+                           c("Region FE", "Yes", "Yes","Yes", "Yes")))
+
+detach(regdata)
+```
