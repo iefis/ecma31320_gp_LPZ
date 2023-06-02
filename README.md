@@ -1,6 +1,7 @@
 # Childhood Family Residential Mobility and Long-run Education \& Labor Outcomes
 **Authors: Sifei Liu, Bhavya Pandey, Yicheng Zhang**  
-This git repositiory is for the final project of University of Chicago ECMA31320 (Spring, 2023)
+This git repositiory is for the final project of University of Chicago ECMA31320 (Spring, 2023).
+Our paper submission can be accessed [here](https://github.com/iefis/ecma31320_gp_LPZ/blob/main/ECMA_Final_project%20(1).pdf).
 
 * Codes folder:
     1. [clean_data.ipynb](https://github.com/iefis/ecma31320_gp_LPZ/blob/7b6fac5eb0db20f4ecb1dd3efb35bd619c788422/replication_pkg_lpz/code/clean_data_final.ipynb): contains the initial data wangling steps to be executed in Python environment.
